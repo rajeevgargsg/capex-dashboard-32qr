@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CAPEX Dashboard - 32 Quality Road</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .gradient-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .kpi-card { transition: transform 0.2s; }
+        .kpi-card:hover { transform: translateY(-2px); }
+        .table-container { overflow-x: auto; max-height: 600px; overflow-y: auto; }
+        .status-badge { padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+        .status-not-started { background: #e0e7ff; color: #4338ca; }
+        .status-in-progress { background: #dbeafe; color: #1e40af; }
+        .status-completed { background: #d1fae5; color: #065f46; }
+        .status-at-risk { background: #fee2e2; color: #991b1b; }
+        .priority-critical { background: #fecaca; color: #991b1b; }
+        .priority-high { background: #fed7aa; color: #92400e; }
+        .priority-medium { background: #fef3c7; color: #92400e; }
+        .priority-low { background: #d1fae5; color: #065f46; }
+        .phase-badge { padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 600; }
+        .phase-1 { background: #e0e7ff; color: #3730a3; }
+        .phase-2 { background: #fce7f3; color: #9d174d; }
+        .phase-both { background: #d1fae5; color: #065f46; }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- Header -->
+    <header class="gradient-header text-white py-6 px-8 shadow-lg">
+        <div class="max-w-7xl mx-auto">
+            <div class="flex justify-between items-center">
+                <div>
+                    <h1 class="text-3xl font-bold"><i class="fas fa-chart-line mr-3"></i>CAPEX Dashboard</h1>
+                    <p class="text-blue-100 mt-1">32 Quality Road Project • Singapore</p>
+                </div>
+                <div class="flex gap-3">
+                    <button onclick="refreshData()" class="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg transition">
+                        <i class="fas fa-sync-alt mr-2"></i>Refresh
+                    </button>
+                    <button onclick="downloadHTML()" class="bg-white text-indigo-600 hover:bg-blue-50 px-4 py-2 rounded-lg font-semibold transition">
+                        <i class="fas fa-download mr-2"></i>Download HTML
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <div class="max-w-7xl mx-auto px-8 py-8">
+        <!-- KPI Cards -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="card p-6 kpi-card border-l-4 border-indigo-500">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-gray-500 text-sm font-semibold uppercase">Total Budget</p>
+                        <p class="text-3xl font-bold text-gray-800 mt-2" id="totalBudget">S$0</p>
+                    </div>
+                    <div class="bg-indigo-100 p-3 rounded-lg">
+                        <i class="fas fa-coins text-indigo-600 text-xl"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card p-6 kpi-card border-l-4 border-blue-500">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-gray-500 text-sm font-semibold uppercase">Committed</p>
+                        <p class="text-3xl font-bold text-gray-800 mt-2" id="committedAmount">S$0</p>
+                    </div>
+                    <div class="bg-blue-100 p-3 rounded-lg">
+                        <i class="fas fa-file-invoice text-blue-600 text-xl"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card p-6 kpi-card border-l-4 border-emerald-500">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-gray-500 text-sm font-semibold uppercase">Available</p>
+                        <p class="text-3xl font-bold text-gray-800 mt-2" id="availableAmount">S$0</p>
+                    </div>
+                    <div class="bg-emerald-100 p-3 rounded-lg">
+                        <i class="fas fa-piggy-bank text-emerald-600 text-xl"></i>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card p-6 kpi-card border-l-4 border-red-500">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-gray-500 text-sm font-semibold uppercase">Critical Items</p>
+                        <p class="text-3xl font-bold text-gray-800 mt-2" id="criticalCount">0</p>
+                    </div>
+                    <div class="bg-red-100 p-3 rounded-lg">
+                        <i class="fas fa-exclamation-triangle text-red-600 text-xl"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <div class="card p-6">
+                <h3 class="text-lg font-bold text-gray-800 mb-4">
+                    <i class="fas fa-chart-pie text-indigo-500 mr-2"></i>Budget by Category
+                </h3>
+                <canvas id="categoryChart" height="250"></canvas>
+            </div>
+            
+            <div class="card p-6">
+                <h3 class="text-lg font-bold text-gray-800 mb-4">
+                    <i class="fas fa-chart-bar text-indigo-500 mr-2"></i>Budget by Phase
+                </h3>
+                <canvas id="phaseChart" height="250"></canvas>
+            </div>
+        </div>
+
+        <!-- Data Table -->
+        <div class="card p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-lg font-bold text-gray-800">
+                    <i class="fas fa-table text-indigo-500 mr-2"></i>Work Package Details
+                </h3>
+                <div class="flex gap-3">
+                    <input type="text" id="searchInput" placeholder="Search..." 
+                           class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                           onkeyup="filterTable()">
+                    <select id="phaseFilter" onchange="filterTable()" 
+                            class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500">
+                        <option value="">All Phases</option>
+                        <option value="1">Phase 1</option>
+                        <option value="2">Phase 2</option>
+                        <option value="12">Phase 1 & 2</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="table-container">
+                <table class="w-full">
+                    <thead class="bg-gray-50 sticky top-0">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">ID</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Work Package</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Category</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Budget (SGD)</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Actual (SGD)</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Variance</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">% Spent</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Priority</th>
+                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Phase</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="divide-y divide-gray-200">
+                        <!-- Data will be inserted here -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="mt-4 text-sm text-gray-600">
+                Showing <span id="showingCount">0</span> of <span id="totalCount">0</span> work packages
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Sample data from your Excel file
+        let capexData = [
+            { id: "WP-001", wp: "Preliminaries", category: "General", budget: 7918200, actual: 0, variance: 7918200, spent: 0, status: "Not Started", priority: "High", phase: "12", owner: "Project Manager", start: "6/1/26", end: "6/30/29" },
+            { id: "WP-002", wp: "Consultancy Fee", category: "Professional Services", budget: 6442300, actual: 0, variance: 6442300, spent: 0, status: "Not Started", priority: "High", phase: "12", owner: "Design Lead", start: "6/1/26", end: "7/14/27" },
+            { id: "WP-003-B1", wp: "Builder Works", category: "Structural", budget: 15957700, actual: 0, variance: 15957700, spent: 0, status: "Not Started", priority: "Critical", phase: "1", owner: "Construction Mgr", start: "2/5/27", end: "10/27/27" },
+            { id: "WP-003-B2", wp: "Builder Works", category: "Structural", budget: 4195700, actual: 0, variance: 4195700, spent: 0, status: "Not Started", priority: "Critical", phase: "1", owner: "Piling Subcon", start: "12/9/26", end: "4/5/27" },
+            { id: "WP-003-B3", wp: "Builder Works", category: "Structural", budget: 4266400, actual: 0, variance: 4266400, spent: 0, status: "Not Started", priority: "High", phase: "1", owner: "Construction Mgr", start: "2/5/27", end: "5/19/27" },
+            { id: "WP-003-B4", wp: "Builder Works", category: "Structural", budget: 15828300, actual: 0, variance: 15828300, spent: 0, status: "Not Started", priority: "Critical", phase: "12", owner: "Construction Mgr", start: "8/14/27", end: "4/14/28" },
+            { id: "WP-003-B5", wp: "Builder Works", category: "Structural", budget: 18886200, actual: 0, variance: 18886200, spent: 0, status: "Not Started", priority: "Critical", phase: "12", owner: "PT Specialist", start: "8/14/27", end: "3/30/28" },
+            { id: "WP-003-B6", wp: "Builder Works", category: "Structural", budget: 3663500, actual: 0, variance: 3663500, spent: 0, status: "Not Started", priority: "Medium", phase: "1", owner: "Steel Subcon", start: "1/5/28", end: "4/14/28" },
+            { id: "WP-003-B7", wp: "Builder Works", category: "Architectural", budget: 842200, actual: 0, variance: 842200, spent: 0, status: "Not Started", priority: "Medium", phase: "12", owner: "Waterproofing Subcon", start: "5/19/27", end: "7/10/28" },
+            { id: "WP-003-B8", wp: "Builder Works", category: "Architectural", budget: 4272800, actual: 0, variance: 4272800, spent: 0, status: "Not Started", priority: "Medium", phase: "12", owner: "Facade Subcon", start: "10/24/27", end: "5/19/28" },
+            { id: "WP-004", wp: "ACMV Works", category: "M&E", budget: 3176000, actual: 0, variance: 3176000, spent: 0, status: "Not Started", priority: "High", phase: "12", owner: "M&E Subcon", start: "11/21/27", end: "7/18/28" },
+            { id: "WP-005", wp: "BMS Works", category: "M&E", budget: 768000, actual: 0, variance: 768000, spent: 0, status: "Not Started", priority: "High", phase: "12", owner: "BMS Specialist", start: "11/21/27", end: "7/18/28" },
+            { id: "WP-006", wp: "ESCS Works", category: "M&E", budget: 4200300, actual: 0, variance: 4200300, spent: 0, status: "Not Started", priority: "Critical", phase: "12", owner: "Fire M&E Subcon", start: "11/21/27", end: "7/18/28" },
+            { id: "WP-007", wp: "Electrical Works", category: "M&E", budget: 9958800, actual: 0, variance: 9958800, spent: 0, status: "Not Started", priority: "Critical", phase: "12", owner: "Electrical Subcon", start: "6/18/27", end: "6/8/28" },
+            { id: "WP-008", wp: "Fire Protection Works", category: "M&E", budget: 3925800, actual: 0, variance: 3925800, spent: 0, status: "Not Started", priority: "Critical", phase: "12", owner: "Fire Subcon", start: "6/18/27", end: "7/18/28" },
+            { id: "WP-009", wp: "Plumbing & Sanitary", category: "M&E", budget: 2776300, actual: 0, variance: 2776300, spent: 0, status: "Not Started", priority: "Medium", phase: "12", owner: "Plumbing Subcon", start: "6/18/27", end: "7/2/28" },
+            { id: "WP-010", wp: "Cold Room Installation", category: "Specialist", budget: 7233500, actual: 0, variance: 7233500, spent: 0, status: "Not Started", priority: "Critical", phase: "12", owner: "Cold Room Subcon", start: "1/24/28", end: "9/13/28" },
+            { id: "WP-011", wp: "Oxy Reduct System", category: "Specialist", budget: 0, actual: 0, variance: 0, spent: 0, status: "On Hold", priority: "TBD", phase: "2", owner: "Fire Consultant", start: "TBD", end: "TBD" },
+            { id: "WP-012", wp: "Vertical Transportation", category: "Specialist", budget: 912800, actual: 0, variance: 912800, spent: 0, status: "Not Started", priority: "High", phase: "12", owner: "Lift Subcon", start: "3/2/28", end: "7/14/28" },
+            { id: "OPT-001", wp: "Optional", category: "General", budget: 648800, actual: 0, variance: 648800, spent: 0, status: "Not Started", priority: "Low", phase: "12", owner: "Project Manager", start: "TBD", end: "TBD" },
+            { id: "PS-001", wp: "Provisional Sum", category: "Authority Fees", budget: 395000, actual: 0, variance: 395000, spent: 0, status: "Not Started", priority: "Medium", phase: "12", owner: "Admin", start: "TBD", end: "TBD" }
+        ];
+
+        let categoryChart, phaseChart;
+
+        function formatCurrency(amount) {
+            if (amount >= 1000000) {
+                return 'S$' + (amount / 1000000).toFixed(2) + 'M';
+            } else if (amount >= 1000) {
+                return 'S$' + (amount / 1000).toFixed(1) + 'K';
+            }
+            return 'S$' + amount.toLocaleString();
+        }
+
+        function getStatusClass(status) {
+            const map = {
+                'Not Started': 'status-not-started',
+                'In Progress': 'status-in-progress',
+                'Completed': 'status-completed',
+                'At Risk': 'status-at-risk',
+                'On Hold': 'status-at-risk'
+            };
+            return map[status] || 'status-not-started';
+        }
+
+        function getPriorityClass(priority) {
+            const map = {
+                'Critical': 'priority-critical',
+                'High': 'priority-high',
+                'Medium': 'priority-medium',
+                'Low': 'priority-low',
+                'TBD': 'priority-medium'
+            };
+            return map[priority] || 'priority-medium';
+        }
+
+        function getPhaseClass(phase) {
+            const map = {
+                '1': 'phase-1',
+                '2': 'phase-2',
+                '12': 'phase-both'
+            };
+            return map[phase] || 'phase-1';
+        }
+
+        function getPhaseLabel(phase) {
+            const map = {
+                '1': 'Phase 1',
+                '2': 'Phase 2',
+                '12': 'Phase 1 & 2'
+            };
+            return map[phase] || phase;
+        }
+
+        function updateKPIs() {
+            const total = capexData.reduce((sum, item) => sum + item.budget, 0);
+            const committed = capexData.reduce((sum, item) => sum + item.actual, 0);
+            const critical = capexData.filter(item => item.priority === 'Critical').length;
+
+            document.getElementById('totalBudget').textContent = formatCurrency(total);
+            document.getElementById('committedAmount').textContent = formatCurrency(committed);
+            document.getElementById('availableAmount').textContent = formatCurrency(total - committed);
+            document.getElementById('criticalCount').textContent = critical;
+        }
+
+        function renderTable(data = capexData) {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+
+            data.forEach(item => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50 transition';
+                row.innerHTML = `
+                    <td class="px-4 py-3 text-sm font-semibold text-indigo-600">${item.id}</td>
+                    <td class="px-4 py-3 text-sm text-gray-800">${item.wp}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600">${item.category}</td>
+                    <td class="px-4 py-3 text-sm font-semibold text-gray-800">${formatCurrency(item.budget)}</td>
+                    <td class="px-4 py-3 text-sm text-gray-600">${formatCurrency(item.actual)}</td>
+                    <td class="px-4 py-3 text-sm ${item.variance < 0 ? 'text-red-600' : 'text-emerald-600'}">${formatCurrency(item.variance)}</td>
+                    <td class="px-4 py-3 text-sm">
+                        <div class="w-full bg-gray-200 rounded-full h-2">
+                            <div class="bg-indigo-600 h-2 rounded-full" style="width: ${item.spent}%"></div>
+                        </div>
+                        <span class="text-xs mt-1 block">${item.spent}%</span>
+                    </td>
+                    <td class="px-4 py-3"><span class="status-badge ${getStatusClass(item.status)}">${item.status}</span></td>
+                    <td class="px-4 py-3"><span class="status-badge ${getPriorityClass(item.priority)}">${item.priority}</span></td>
+                    <td class="px-4 py-3"><span class="phase-badge ${getPhaseClass(item.phase)}">${getPhaseLabel(item.phase)}</span></td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            document.getElementById('showingCount').textContent = data.length;
+            document.getElementById('totalCount').textContent = capexData.length;
+        }
+
+        function initCharts() {
+            // Category Chart
+            const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+            const categoryData = {};
+            capexData.forEach(item => {
+                categoryData[item.category] = (categoryData[item.category] || 0) + item.budget;
+            });
+
+            if (categoryChart) categoryChart.destroy();
+            categoryChart = new Chart(categoryCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(categoryData),
+                    datasets: [{
+                        data: Object.values(categoryData),
+                        backgroundColor: ['#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#10b981', '#f59e0b', '#64748b']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+
+            // Phase Chart
+            const phaseCtx = document.getElementById('phaseChart').getContext('2d');
+            const phaseData = { 'Phase 1': 0, 'Phase 2': 0, 'Phase 1 & 2': 0 };
+            capexData.forEach(item => {
+                const label = getPhaseLabel(item.phase);
+                phaseData[label] = (phaseData[label] || 0) + item.budget;
+            });
+
+            if (phaseChart) phaseChart.destroy();
+            phaseChart = new Chart(phaseCtx, {
+                type: 'bar',
+                data: {
+                    labels: Object.keys(phaseData),
+                    datasets: [{
+                        label: 'Budget (SGD)',
+                        data: Object.values(phaseData),
+                        backgroundColor: ['#6366f1', '#ec4899', '#10b981']
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return 'S$' + (value / 1000000).toFixed(1) + 'M';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function filterTable() {
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const phase = document.getElementById('phaseFilter').value;
+
+            const filtered = capexData.filter(item => {
+                const matchesSearch = item.id.toLowerCase().includes(search) ||
+                                    item.wp.toLowerCase().includes(search) ||
+                                    item.category.toLowerCase().includes(search);
+                const matchesPhase = !phase || item.phase === phase;
+                return matchesSearch && matchesPhase;
+            });
+
+            renderTable(filtered);
+        }
+
+        function refreshData() {
+            location.reload();
+        }
+
+        function downloadHTML() {
+            const html = document.documentElement.outerHTML;
+            const blob = new Blob([html], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'CAPEX_Dashboard_32QR.html';
+            a.click();
+        }
+
+        // Initialize dashboard
+        window.onload = function() {
+            updateKPIs();
+            renderTable();
+            initCharts();
+        };
+    </script>
+</body>
+</html>
